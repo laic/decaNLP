@@ -230,6 +230,14 @@ class TransformerDecoder(nn.Module):
 def mask(targets, out, squash=True, pad_idx=1):
     mask = (targets != pad_idx)
     out_mask = mask.unsqueeze(-1).expand_as(out).contiguous()
+    #print(out_mask.shape)
+    #print(out.element_size(), out.nelement())
+    #print(torch.cuda.current_device())
+    #device = torch.cuda.current_device()
+    #print(torch.cuda.get_device_name(device))
+    #print(torch.cuda.max_memory_allocated(device=device))
+    #print(torch.cuda.memory_allocated(device=device))
+
     out_after = out[out_mask].contiguous().view(-1, out.size(-1))
     targets_after = targets[mask]
     return out_after, targets_after

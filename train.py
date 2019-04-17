@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import os
 import math
 import time
@@ -97,8 +95,8 @@ def prepare_data(args, field, logger):
     FIELD.vocab_to_decoder = {idx: FIELD.decoder_stoi[word] for idx, word in enumerate(FIELD.vocab.itos) if word in FIELD.decoder_stoi}
 
     logger.info(f'Vocabulary has {len(FIELD.vocab)} tokens')
-    logger.info(f'The first 500 tokens:')
-    print(FIELD.vocab.itos[:500])
+    #logger.info(f'The first 500 tokens:')
+    #print(FIELD.vocab.itos[:500])
 
     logger.info('Preprocessing training data')
     preprocess_examples(args, args.train_tasks, train_sets, FIELD, logger, train=True) 
@@ -145,6 +143,7 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
     log_every=10, val_every=100, save_every=1000, rounds=False, val_iters=[], writer=None, start_iteration=1, rnd=1):
     """main training function"""
 
+    print("MAIN TRAINING FUNCTION")
     logger = log(rank) 
     local_loss, num_examples, len_contexts, len_answers, iteration = 0, 0, 0, 0, start_iteration
 
@@ -220,7 +219,7 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
                     if args.warmup > 0 and args.transformer_lr:
                         lr = get_learning_rate(iteration, args) 
 
-                    # param update
+                    # param update : apply the model
                     loss, train_metric_dict = step(model, batch, opt, iteration, field, task, lr=lr, grad_clip=args.grad_clip, writer=writer, it=train_iter)
 
                     # train metrics
@@ -278,6 +277,7 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
 
 
 def run(args, run_args, rank=0, world_size=1):
+
     device = set_seed(args, rank=rank)
     logger = initialize_logger(args, rank)
     field, train_sets, val_sets, save_dict = run_args
@@ -287,6 +287,7 @@ def run(args, run_args, rank=0, world_size=1):
     logger.info(f'Preparing iterators')
     train_iters = [(name, to_iter(args, world_size, tok, x, device, token_testing=args.token_testing)) 
                       for name, x, tok in zip(args.train_tasks, train_sets, args.train_batch_tokens)]
+
     val_iters = [(name, to_iter(args, world_size, tok, x, device, train=False, token_testing=args.token_testing, sort=False if 'sql' in name else None))
                     for name, x, tok in zip(args.val_tasks, val_sets, args.val_batch_size)]
 
@@ -349,18 +350,23 @@ def main():
     args = arguments.parse()
     if args is None:
         return
+
     set_seed(args)
+
     logger = initialize_logger(args)
     logger.info(f'Arguments:\n{pformat(vars(args))}')
 
     field, save_dict = None, None
+
     if args.load is not None:
         logger.info(f'Loading field from {os.path.join(args.save, args.load)}')
         save_dict = torch.load(os.path.join(args.save, args.load))
         field = save_dict['field']
+
     field, train_sets, val_sets = prepare_data(args, field, logger)
 
     run_args = (field, train_sets, val_sets, save_dict)
+
     if len(args.devices) > 1:
         logger.info(f'Multiprocessing')
         mp = Multiprocess(run, args)

@@ -72,8 +72,12 @@ def set_seed(args, rank=None):
         ordinal = args.devices[0]
     else:
         ordinal = args.devices[rank] 
+    print("set torch device")
+    print(args.devices)
     device = torch.device(f'cuda:{ordinal}' if ordinal > -1 else 'cpu')
     print(f'device: {device}')
+    print(torch.cuda.current_device())
+    print(torch.cuda.get_device_name(torch.cuda.current_device()))
     np.random.seed(args.seed)
     random.seed(args.seed)
     torch.manual_seed(args.seed)
