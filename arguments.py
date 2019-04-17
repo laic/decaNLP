@@ -10,11 +10,14 @@ from dateutil import tz
 
 
 def get_commit():
+    print("get_commit")
     directory = os.path.dirname(sys.argv[0])
     return subprocess.Popen("cd {} && git log | head -n 1".format(directory), shell=True, stdout=subprocess.PIPE).stdout.read().split()[1].decode()
 
 
 def save_args(args):
+    print("save_args")
+    print(args.log_dir)
     os.makedirs(args.log_dir, exist_ok=args.exist_ok)
     with open(os.path.join(args.log_dir, 'config.json'), 'wt') as f:
         json.dump(vars(args), f, indent=2)
@@ -25,7 +28,7 @@ def parse():
     Returns the arguments from the command line.
     """
     parser = ArgumentParser()
-    parser.add_argument('--root', default='/decaNLP', type=str, help='root directory for data, results, embeddings, code, etc.')
+    parser.add_argument('--root', default='/disk/scratch_bigger/clai/decaNLP', type=str, help='root directory for data, results, embeddings, code, etc.')
     parser.add_argument('--data', default='.data/', type=str, help='where to load data from.')
     parser.add_argument('--save', default='results', type=str, help='where to save results.')
     parser.add_argument('--embeddings', default='.embeddings', type=str, help='where to save embeddings.')
@@ -89,6 +92,7 @@ def parse():
     parser.add_argument('--reverse', action='store_true', help='if token_testing and true, sorts all iterators in reverse') 
 
     args = parser.parse_args()
+    print(args)
     if args.model is None:
         args.model = 'mcqa'
     if args.val_tasks is None:
@@ -134,5 +138,5 @@ def parse():
     for x in ['data', 'save', 'embeddings', 'log_dir', 'dist_sync_file']:
         setattr(args, x, os.path.join(args.root, getattr(args, x)))
     save_args(args)
-
+    print("return args")
     return args
