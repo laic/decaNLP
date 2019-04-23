@@ -110,12 +110,15 @@ def parse():
     args.timestamp = '-'.join(datetime.datetime.now(tz=tz.tzoffset(None, -8*60*60)).strftime("%y/%m/%d/%H/%M/%S.%f").split())
 
     if len(args.train_tasks) > 1:
+
         if args.train_iterations is  None:
             args.train_iterations = [1]
+
         if len(args.train_iterations) < len(args.train_tasks):
             args.train_iterations = len(args.train_tasks) * args.train_iterations
         if len(args.train_batch_tokens) < len(args.train_tasks):
             args.train_batch_tokens = len(args.train_tasks) * args.train_batch_tokens
+
     if len(args.val_batch_size) < len(args.val_tasks):
         args.val_batch_size = len(args.val_tasks) * args.val_batch_size
         

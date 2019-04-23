@@ -144,6 +144,9 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
     """main training function"""
 
     print("MAIN TRAINING FUNCTION")
+    print("train_iterations", train_iterations)
+    #raise SystemExit
+
     logger = log(rank) 
     local_loss, num_examples, len_contexts, len_answers, iteration = 0, 0, 0, 0, start_iteration
 
@@ -151,6 +154,7 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
     local_train_metric_dict = {}
 
     train_iters = [(task, iter(train_iter)) for task, train_iter in train_iters]
+
     while True:
 
         # For some number of rounds, we 'jump start' some subset of the tasks
