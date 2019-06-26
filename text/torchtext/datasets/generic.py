@@ -1463,8 +1463,8 @@ class SNLI(CQA, data.Dataset):
         return tuple(d for d in (train_data, validation_data, test_data)
                      if d is not None)
 
-
 class JSON(CQA, data.Dataset):
+## Generic input
 
     @staticmethod
     def sort_key(ex):
@@ -1472,6 +1472,7 @@ class JSON(CQA, data.Dataset):
 
     def __init__(self, path, field, subsample=None, **kwargs):
         fields = [(x, field) for x in self.fields]
+        print(fields)
         cache_name = os.path.join(os.path.dirname(path), '.cache', os.path.basename(path), str(subsample))
 
         examples = []
@@ -1483,15 +1484,27 @@ class JSON(CQA, data.Dataset):
                 lines = f.readlines()
                 for line in lines:
                     ex = json.loads(line)
-                    context, question, answer = ex['context'], ex['question'], ex['answer']
+                    try:
+                        context, question, answer = ex['context'], ex['question'], ex['answer']
+                    except:
+                        print("ERROR")
+                        print(ex)
+                        raise SystemExit
+                    xid = ex['id']
                     context_question = get_context_question(context, question) 
                     ex = data.Example.fromlist([context, question, answer, CONTEXT_SPECIAL, QUESTION_SPECIAL, context_question], fields)
+                    ex.xid = xid 
                     examples.append(ex)
                     if subsample is not None and len(examples) >= subsample: 
                         break
             os.makedirs(os.path.dirname(cache_name), exist_ok=True)
             print(f'Caching data to {cache_name}')
             torch.save(examples, cache_name)
+
+        FIELD = data.Field(batch_first=True, use_vocab=False, sequential=False, 
+            lower=False, numerical=True, eos_token=field.eos_token, init_token=field.init_token)
+        fields.append(('xid', FIELD))
+        print(fields)
 
         super(JSON, self).__init__(examples, fields, **kwargs)
 
@@ -1500,11 +1513,14 @@ class JSON(CQA, data.Dataset):
                train='train', validation='val', test='test', **kwargs):
         path = os.path.join(root, name) 
 
+        print("splits")
+        print(train, validation, test)
         train_data = None if train is None else cls(
             os.path.join(path, 'train.jsonl'), fields, **kwargs)
         validation_data = None if validation is None else cls(
             os.path.join(path, 'val.jsonl'), fields, **kwargs)
         test_data = None if test is None else cls(
             os.path.join(path, 'test.jsonl'), fields, **kwargs)
+
         return tuple(d for d in (train_data, validation_data, test_data)
                      if d is not None)

@@ -407,6 +407,7 @@ class CoattentiveLayer(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, context, question, context_padding, question_padding): 
+        ## Padding so hat tokens are not forced to align with any token in the other sequence
         context_padding = torch.cat([context.new_zeros((context.size(0), 1), dtype=torch.long)==1, context_padding], 1)
         question_padding = torch.cat([question.new_zeros((question.size(0), 1), dtype=torch.long)==1, question_padding], 1)
 
@@ -417,11 +418,17 @@ class CoattentiveLayer(nn.Module):
         question = torch.cat([question_sentinel, question], 1) # batch_size x (question_length + 1) x features
         question = torch.tanh(self.proj(question)) # batch_size x (question_length + 1) x features
 
+        ## (17) Alignment 
         affinity = context.bmm(question.transpose(1,2)) # batch_size x (context_length + 1) x (question_length + 1)
         attn_over_context = self.normalize(affinity, context_padding) # batch_size x (context_length + 1) x 1
         attn_over_question = self.normalize(affinity.transpose(1,2), question_padding) # batch_size x (question_length + 1) x 1
+
+        ## (18) Dual coattention
         sum_of_context = self.attn(attn_over_context, context) # batch_size x (question_length + 1) x features
         sum_of_question = self.attn(attn_over_question, question) # batch_size x (context_length + 1) x features
+
+        ## (19) "the coattended representations use the same weights to transfer information gained from alignments 
+        ## back to the original sequences" 
         coattn_context = self.attn(attn_over_question, sum_of_context) # batch_size x (context_length + 1) x features
         coattn_question = self.attn(attn_over_context, sum_of_question) # batch_size x (question_length + 1) x features
         return torch.cat([coattn_context, sum_of_question], 2)[:, 1:], torch.cat([coattn_question, sum_of_context], 2)[:, 1:]

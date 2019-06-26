@@ -14,6 +14,8 @@ from metrics import compute_metrics
 import models
 
 
+
+
 def get_all_splits(args, new_vocab):
     splits = []
     for task in args.tasks:
@@ -34,6 +36,7 @@ def get_all_splits(args, new_vocab):
 def prepare_data(args, FIELD):
     new_vocab = torchtext.data.ReversibleField(batch_first=True, init_token='<init>', eos_token='<eos>', lower=args.lower, include_lengths=True)
     splits = get_all_splits(args, new_vocab)
+
     new_vocab.build_vocab(*splits)
     print(f'Vocabulary has {len(FIELD.vocab)} tokens from training')
     args.max_generative_vocab = min(len(FIELD.vocab), args.max_generative_vocab)
@@ -66,7 +69,8 @@ def run(args, field, val_sets, model):
     print(f'Preparing iterators')
     if len(args.val_batch_size) == 1 and len(val_sets) > 1:
         args.val_batch_size *= len(val_sets)
-    iters = [(name, to_iter(x, bs, device)) for name, x, bs in zip(args.tasks, val_sets, args.val_batch_size)]
+    print(args.val_batch_size)
+    iters = [(name, to_iter(x, bs/2, device)) for name, x, bs in zip(args.tasks, val_sets, args.val_batch_size)]
  
     def mult(ps):
         r = 0
@@ -86,11 +90,18 @@ def run(args, field, val_sets, model):
     with torch.no_grad():
         for task, it in iters:
             print(task)
+
             prediction_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.txt')
             answer_file_name = os.path.join(os.path.splitext(args.best_checkpoint)[0], args.evaluate, task + '.gold.txt')
             results_file_name = answer_file_name.replace('gold', 'results')
-            if 'sql' in task or 'squad' in task:
+
+            print(prediction_file_name)
+            print(answer_file_name)
+            print(results_file_name)
+
+            if 'sql' in task or 'squad' in task or 'topsum' in task:
                 ids_file_name = answer_file_name.replace('gold', 'ids')
+
             if os.path.exists(prediction_file_name):
                 print('** ', prediction_file_name, ' already exists -- this is where predictions are stored **')
                 if args.overwrite:
@@ -105,10 +116,12 @@ def run(args, field, val_sets, model):
                     print('**** overwriting ', results_file_name, ' ****')
                 else:
                     with open(results_file_name) as results_file:
+                        rlines = results_files.readlines()
+                        print(rlines)
+                        metrics = json.loads(rlines[0])
                         if not args.silent:
-                            for l in results_file:
+                            for l in rlines:
                                 print(l)
-                        metrics = json.loads(results_file.readlines()[0])
                         decaScore.append(metrics[args.task_to_metric[task]])
                     continue
 
@@ -119,16 +132,33 @@ def run(args, field, val_sets, model):
                 with open(prediction_file_name, 'w') as prediction_file:
                     predictions = []
                     ids = []
+                    idoffset = 0
                     for batch_idx, batch in enumerate(it):
                         _, p = model(batch)
                         p = field.reverse(p)
+
+                        if task in ['topsum','topic','attclass','attpos','attsum']:
+                            batchids = batch.xid.data.tolist()
+                            ids = ids + batchids
+
                         for i, pp in enumerate(p):
                             if 'sql' in task:
                                 ids.append(int(batch.wikisql_id[i]))
                             if 'squad' in task:
                                 ids.append(it.dataset.q_ids[int(batch.squad_id[i])])
-                            prediction_file.write(pp + '\n')
+                                
+                            try:
+                                prediction_file.write(str(ids[idoffset + i]) + ":\t" + pp + '\n')
+                            except IndexError as e: 
+                                print(e)
+                                print(ids)
+                                print(idoffset, i)
+                                raise SystemExit
+
                             predictions.append(pp) 
+
+                        idoffset = len(ids) 
+
                 if 'sql' in task:
                     with open(ids_file_name, 'w') as id_file:
                         for i in ids:
@@ -137,6 +167,12 @@ def run(args, field, val_sets, model):
                     with open(ids_file_name, 'w') as id_file:
                         for i in ids:
                             id_file.write(i + '\n')
+
+                if 'topsum' in task:
+                    with open(ids_file_name, 'w') as id_file:
+                        for i in ids:
+                            id_file.write(str(i) + '\n')
+
             else:
                 with open(prediction_file_name) as prediction_file:
                     predictions = [x.strip() for x in prediction_file.readlines()] 
@@ -159,9 +195,16 @@ def run(args, field, val_sets, model):
                             a = from_all_answers(batch.woz_id.data.cpu())
                         else:
                             a = field.reverse(batch.answer.data)
+
+                        if hasattr(batch, 'xid'):
+                            a = zip(a, batch.xid.data.tolist())
+
                         for aa in a:
-                            answers.append(aa) 
                             answer_file.write(json.dumps(aa) + '\n')
+                            if type(aa) == tuple:
+                                answers.append(aa[0]) 
+                            else:
+                                answers.append(aa) 
             else:
                 with open(answer_file_name) as answer_file:
                     answers = [json.loads(x.strip()) for x in answer_file.readlines()] 
@@ -191,14 +234,15 @@ def run(args, field, val_sets, model):
 
 
 def get_args():
+    print("get_args")
     parser = ArgumentParser()
     parser.add_argument('--path', required=True)
     parser.add_argument('--evaluate', type=str, required=True)
     parser.add_argument('--tasks', default=['squad', 'iwslt.en.de', 'cnn_dailymail', 'multinli.in.out', 'sst', 'srl', 'zre', 'woz.en', 'wikisql', 'schema'], nargs='+')
     parser.add_argument('--devices', default=[0], nargs='+', type=int, help='a list of devices that can be used (multi-gpu currently WIP)')
     parser.add_argument('--seed', default=123, type=int, help='Random seed.')
-    parser.add_argument('--data', default='/decaNLP/.data/', type=str, help='where to load data from.')
-    parser.add_argument('--embeddings', default='/decaNLP/.embeddings', type=str, help='where to save embeddings.')
+    parser.add_argument('--data', default='/group/project/cstr2/clai/decaNLP/data', type=str, help='where to load data from.')
+    parser.add_argument('--embeddings', default='/group/project/cstr2/clai/decaNLP/embeddings', type=str, help='where to save embeddings.')
     parser.add_argument('--checkpoint_name')
     parser.add_argument('--bleu', action='store_true', help='whether to use the bleu metric (always on for iwslt)')
     parser.add_argument('--rouge', action='store_true', help='whether to use the bleu metric (always on for cnn, dailymail, and cnn_dailymail)')
@@ -227,7 +271,13 @@ def get_args():
                 setattr(args, r, None)
         args.dropout_ratio = 0.0
 
-    args.task_to_metric = {'cnn_dailymail': 'avg_rouge',
+    args.task_to_metric = {
+        'cnn_dailymail': 'avg_rouge',
+        'attsum': 'avg_rouge',
+        'attclass': 'nf1',
+        'attpos': 'nf1',
+        'topsum': 'avg_rouge',
+        'topic': 'avg_rouge',
         'iwslt.en.de': 'bleu',
         'multinli.in.out': 'em',
         'squad': 'nf1',
@@ -243,7 +293,8 @@ def get_args():
     else:
         assert os.path.exists(os.path.join(args.path, 'process_0.log'))
         args.best_checkpoint = get_best(args)
-           
+          
+    print("return args") 
     return args
 
 
@@ -292,6 +343,7 @@ if __name__ == '__main__':
     print(f'Loading from {args.best_checkpoint}')
     save_dict = torch.load(args.best_checkpoint)
     field = save_dict['field']
+
     print(f'Initializing Model')
     Model = getattr(models, args.model) 
     model = Model(field, args)
@@ -303,7 +355,9 @@ if __name__ == '__main__':
         backwards_compatible_cove_dict[k] = v
     model_dict = backwards_compatible_cove_dict
     model.load_state_dict(model_dict)
+
     field, splits = prepare_data(args, field)
+
     model.set_embeddings(field.vocab.vectors)
 
     run(args, field, splits, model)

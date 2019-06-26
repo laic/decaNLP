@@ -48,7 +48,6 @@ def log(rank='main'):
 
 
 def prepare_data(args, field, logger):
-
     if field is None: 
         logger.info(f'Constructing field')
         FIELD = torchtext.data.ReversibleField(batch_first=True, init_token='<init>', eos_token='<eos>', lower=args.lower, include_lengths=True)
@@ -145,7 +144,6 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
 
     print("MAIN TRAINING FUNCTION")
     print("train_iterations", train_iterations)
-    #raise SystemExit
 
     logger = log(rank) 
     local_loss, num_examples, len_contexts, len_answers, iteration = 0, 0, 0, 0, start_iteration
@@ -167,13 +165,21 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
         else:
             train_iterations = train_iter_deep
 
+        #print("train_iterations", train_iterations)
         for task_idx, (task, train_iter) in enumerate(train_iters):
+            #print(task_idx, task)
             task_best_metrics = {}
             task_iterations = train_iterations[task_idx] if train_iterations is not None else None
+            #print("task_iterations", task_iterations)
+
             if task_iterations == 0:
                 continue
+
+            #idb = -1
             task_iteration = 1
             for batch in train_iter:
+             #   idb += 1 
+             #   print("idb",idb)
                 if not args.resume or iteration > start_iteration:
                     task_progress = f'{task_iteration}/{task_iterations}:' if task_iterations is not None else ''
                     round_progress = f'round_{rnd}:' if rounds else ''
@@ -281,7 +287,6 @@ def train(args, model, opt, train_iters, train_iterations, field, rank=0, world_
 
 
 def run(args, run_args, rank=0, world_size=1):
-
     device = set_seed(args, rank=rank)
     logger = initialize_logger(args, rank)
     field, train_sets, val_sets, save_dict = run_args
@@ -311,7 +316,15 @@ def run(args, run_args, rank=0, world_size=1):
         model.load_state_dict(save_dict['model_state_dict'])
         if args.resume:
             logger.info(f'Resuming Training from {os.path.splitext(args.load)[0]}_rank_{rank}_optim.pth')
-            opt.load_state_dict(torch.load(os.path.join(args.save, f'{os.path.splitext(args.load)[0]}_rank_{rank}_optim.pth')))
+            try:
+                opt.load_state_dict(torch.load(os.path.join(args.save, f'{os.path.splitext(args.load)[0]}_rank_{rank}_optim.pth')))
+            except ValueError as e: 
+                print(e)
+                sdict = torch.load(os.path.join(args.save, f'{os.path.splitext(args.load)[0]}_rank_{rank}_optim.pth')) 
+                odict = opt.state_dict()
+                print(sdict['param_groups'].keys())
+                print(odict['param_groups'].keys())
+                raise SystemExit 
             start_iteration = int(os.path.splitext(os.path.basename(args.load))[0].split('_')[1])
 
     logger.info(f'Begin Training')

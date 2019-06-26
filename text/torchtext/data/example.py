@@ -68,6 +68,7 @@ class Example(object):
     def fromlist(cls, data, fields):
         ex = cls()
         for (name, field), val in zip(fields, data):
+            #print(name, field, val)
             if field is not None:
                 if isinstance(val, six.string_types):
                     val = val.rstrip('\n')

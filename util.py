@@ -20,6 +20,8 @@ def preprocess_examples(args, tasks, splits, field, logger=None, train=True):
         len(ex.context)<min_length)
 
     for task, s in zip(tasks, splits):
+        print(task)
+        print(s)
         if logger is not None:
             logger.info(f'{task} has {len(s.examples)} examples')
         if 'cnn' in task or 'dailymail' in task or 'imdb' in task:
@@ -54,6 +56,14 @@ def preprocess_examples(args, tasks, splits, field, logger=None, train=True):
             logger.info(f'{task} question lengths (min, mean, max): {np.min(question_lengths)}, {int(np.mean(question_lengths))}, {np.max(question_lengths)}')
             logger.info(f'{task} answer lengths (min, mean, max): {np.min(answer_lengths)}, {int(np.mean(answer_lengths))}, {np.max(answer_lengths)}')
 
+        context_lengths = [len(ex.context) for ex in s.examples] 
+        question_lengths = [len(ex.question) for ex in s.examples] 
+        answer_lengths = [len(ex.answer) for ex in s.examples] 
+
+        print(f'{task} context lengths (min, mean, max): {np.min(context_lengths)}, {int(np.mean(context_lengths))}, {np.max(context_lengths)}') 
+        print(f'{task} question lengths (min, mean, max): {np.min(question_lengths)}, {int(np.mean(question_lengths))}, {np.max(question_lengths)}')
+        print(f'{task} answer lengths (min, mean, max): {np.min(answer_lengths)}, {int(np.mean(answer_lengths))}, {np.max(answer_lengths)}')
+
         for x in s.examples:
             x.context_question = get_context_question(x, x.context, x.question, field)
 
@@ -65,6 +75,12 @@ def preprocess_examples(args, tasks, splits, field, logger=None, train=True):
                 logger.info(' '.join(ex.context_question))
                 logger.info('Answer: ' + ' '.join(ex.answer))
 
+#        for ex in s.examples[:10]:
+#            print('Context: ' + ' '.join(ex.context))
+#            print('Question: ' + ' '.join(ex.question))
+#            print(' '.join(ex.context_question))
+#            print('Answer: ' + ' '.join(ex.answer))
+
 
 
 def set_seed(args, rank=None):
@@ -75,9 +91,9 @@ def set_seed(args, rank=None):
     print("set torch device")
     print(args.devices)
     device = torch.device(f'cuda:{ordinal}' if ordinal > -1 else 'cpu')
-    print(f'device: {device}')
-    print(torch.cuda.current_device())
-    print(torch.cuda.get_device_name(torch.cuda.current_device()))
+    #print(f'device: {device}')
+    #print(torch.cuda.current_device())
+    #print(torch.cuda.get_device_name(torch.cuda.current_device()))
     np.random.seed(args.seed)
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -174,6 +190,7 @@ def get_splits(args, task, FIELD, **kwargs):
     elif 'zre' in task:
         split = torchtext.datasets.generic.ZeroShotRE.splits(
             fields=FIELD, root=args.data, **kwargs)
+
     elif os.path.exists(os.path.join(args.data, task)):
         split = torchtext.datasets.generic.JSON.splits(
             fields=FIELD, root=args.data, name=task, **kwargs)

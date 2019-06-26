@@ -28,22 +28,24 @@ def parse():
     Returns the arguments from the command line.
     """
     parser = ArgumentParser()
-    parser.add_argument('--root', default='/disk/scratch_bigger/clai/decaNLP', type=str, help='root directory for data, results, embeddings, code, etc.')
-    parser.add_argument('--data', default='.data/', type=str, help='where to load data from.')
-    parser.add_argument('--save', default='results', type=str, help='where to save results.')
-    parser.add_argument('--embeddings', default='.embeddings', type=str, help='where to save embeddings.')
+    parser.add_argument('--root', default='/group/project/cstr2/clai/decaNLP', type=str, help='root directory for data, results, embeddings, code, etc.')
+    parser.add_argument('--data', default='/group/project/cstr2/clai/decaNLP/data/', type=str, help='where to load data from.')
+    parser.add_argument('--save', default='/group/project/cstr2/clai/decaNLP/results', type=str, help='where to save results.')
+    parser.add_argument('--embeddings', default='/group/project/cstr2/clai/decaNLP/embeddings', type=str, help='where to save embeddings.')
+    parser.add_argument('--acoustic', default='/group/project/cstr2/clai/decaNLP/acoustic', type=str, help='where to save embeddings.')
     parser.add_argument('--name', default='', type=str, help='name of the experiment; if blank, a name is automatically generated from the arguments')
 
     parser.add_argument('--train_tasks', nargs='+', type=str, help='tasks to use for training', required=True)
     parser.add_argument('--train_iterations', nargs='+', type=int, help='number of iterations to focus on each task')
-    parser.add_argument('--train_batch_tokens', nargs='+', default=[9000], type=int, help='Number of tokens to use for dynamic batching, corresponging to tasks in train tasks')
+    parser.add_argument('--train_batch_tokens', nargs='+', default=[4000], type=int, help='Number of tokens to use for dynamic batching, corresponging to tasks in train tasks')
     parser.add_argument('--jump_start', default=0, type=int, help='number of iterations to give jump started tasks')
     parser.add_argument('--n_jump_start', default=0, type=int, help='how many tasks to jump start (presented in order)')    
     parser.add_argument('--num_print', default=15, type=int, help='how many validation examples with greedy output to print to std out')
 
     parser.add_argument('--no_tensorboard', action='store_false', dest='tensorboard', help='Turn of tensorboard logging') 
     parser.add_argument('--log_every', default=int(1e2), type=int, help='how often to log results in # of iterations')
-    parser.add_argument('--save_every', default=int(1e3), type=int, help='how often to save a checkpoint in # of iterations')
+    parser.add_argument('--save_every', default=int(1e4), type=int, help='how often to save a checkpoint in # of iterations')
+
 
     parser.add_argument('--val_tasks', nargs='+', type=str, help='tasks to collect evaluation metrics for')
     parser.add_argument('--val_every', default=int(1e3), type=int, help='how often to run validation in # of iterations')
@@ -116,8 +118,12 @@ def parse():
 
         if len(args.train_iterations) < len(args.train_tasks):
             args.train_iterations = len(args.train_tasks) * args.train_iterations
+
         if len(args.train_batch_tokens) < len(args.train_tasks):
             args.train_batch_tokens = len(args.train_tasks) * args.train_batch_tokens
+    else: 
+        if args.train_iterations is  None:
+            args.train_iterations = [1]
 
     if len(args.val_batch_size) < len(args.val_tasks):
         args.val_batch_size = len(args.val_tasks) * args.val_batch_size
@@ -128,8 +134,10 @@ def parse():
     else:
         args.commit = ''
     train_out = f'{",".join(args.train_tasks)}'
+
     if len(args.train_tasks) > 1:
         train_out += f'{"-".join([str(x) for x in args.train_iterations])}'
+
     args.log_dir = os.path.join(args.save, args.timestamp,
         f'{train_out}{(",val=" + ",".join(args.val_tasks)) if args.val_tasks != args.train_tasks else ""},{args.model},' \
         f'{args.world_size}g',
